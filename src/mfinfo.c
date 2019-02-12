@@ -224,7 +224,7 @@ char* get_card_type(nfc_iso14443a_info* tag_info, nfc_device* pcd) {
 					if (sak & 0b100000) {
 						return "Smart MX with MIFARE 4K";
 					} else {
-						if (atsSize <= 0) {
+						if (atsSize == 0) {
 							return "MIFARE Classic 4K";
 						} else {
 							return "MIFARE Plus";
@@ -238,7 +238,7 @@ char* get_card_type(nfc_iso14443a_info* tag_info, nfc_device* pcd) {
 					if (sak & 0b100000) {
 						return "Smart MX with MIFARE 1K";
 					} else {
-						if (atsSize <= 0) {
+						if (atsSize == 0) {
 							return "MIFARE Classic 1K";
 						} else {
 							return "MIFARE Plus";
@@ -255,7 +255,7 @@ char* get_card_type(nfc_iso14443a_info* tag_info, nfc_device* pcd) {
 				}
 			} else {
 				if (sak & 0b100000) {
-					if (atsSize <= 0) {
+					if (atsSize == 0) {
 						int version = get_target_version(pcd);
 
 						if (version >= 0) {
