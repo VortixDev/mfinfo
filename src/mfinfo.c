@@ -4,6 +4,8 @@
 
 #define ATQA_SIZE_IN_BYTES 2
 #define SAK_SIZE_IN_BYTES 1
+#define ATS_FORMAT_DATA_SIZE 1
+#define MAX_HISTORICAL_BYTES 14
 
 // ATQA = Answer To Request A
 // SAK = Select Acknowledge
@@ -13,7 +15,7 @@
 uint8_t HALT_COMMAND_BYTES[4] = { 0x50, 0x00, 0x00, 0x00 };
 const uint8_t HALT_UNLOCK_PARAMETERS[2] = { 0x40, 0x43 }; // Special parameters for "magic" cards
 
-uint8_t GET_VERSION_COMMAND_BYTES[3] = { 0x60, 0x00, 0x00 };
+uint8_t GET_VERSION_COMMAND_BYTE[1] = { 0x60 };
 
 void print_nfc_version();
 void print_pcd_name(nfc_device*);
@@ -24,6 +26,7 @@ void print_ats(nfc_iso14443a_info*);
 void print_magic_type(nfc_context*, nfc_device*);
 void print_card_type(nfc_iso14443a_info*, nfc_device*);
 bool get_is_magic_gen1(nfc_context*, nfc_device*);
+uint8_t get_historical_bytes(uint8_t*, uint8_t, uint8_t*);
 char* get_card_type(nfc_iso14443a_info*, nfc_device*);
 int get_target_version(nfc_device*);
 void configure_pcd(nfc_context*, nfc_device*);
@@ -208,13 +211,70 @@ bool get_is_magic_gen1(nfc_context* context, nfc_device* pcd) {
 	return is_magic;
 }
 
-// https://www.nxp.com/docs/en/application-note/AN10834.pdf
-// http://nfc-tools.org/index.php/ISO14443A
+/*
+	Resources for understanding the structure of the ATS:
+	http://www.emutag.com/iso/14443-4.pdf
+	http://www.gorferay.com/data-transmission-protocol-iso-iec-14-433-4/ (via archive)
+*/
+uint8_t get_historical_bytes(uint8_t* ats, uint8_t ats_size, uint8_t* historical_bytes) {
+	if (ats_size <= 1) {
+		return 0;
+	}
+
+	uint8_t format_byte = ats[0];
+
+	if ((format_byte & 0b10000000) > 0) {
+		printf("Reserved bit - bit 8 of the format byte - is in use. Unable to proceed.\n");
+
+		exit(EXIT_FAILURE);
+	}
+
+	uint8_t interface_byte_count = 0;
+
+	if ((format_byte & 0b1000000) > 0) {
+		++interface_byte_count;
+	}
+
+	if ((format_byte & 0b100000) > 0) {
+		++interface_byte_count;
+	}
+
+	if ((format_byte & 0b10000)) {
+		++interface_byte_count;
+	}
+
+	uint8_t historical_bytes_count = ats_size - ATS_FORMAT_DATA_SIZE - interface_byte_count;
+
+	if (historical_bytes_count == 0) {
+		return 0;
+	}
+
+	historical_bytes = malloc(historical_bytes_count);
+
+	for (uint8_t i = 0; i < historical_bytes_count; ++i) {
+		historical_bytes[i] = ats[ATS_FORMAT_DATA_SIZE + interface_byte_count + i];
+	}
+
+	return historical_bytes_count;
+}
+
+/*
+	Resources for identifying card types:
+	https://www.nxp.com/docs/en/application-note/AN10834.pdf
+	http://nfc-tools.org/index.php/ISO14443A
+
+	Although AN10834 describes one stage of identification of a
+	DESFire as ensuring	the lack of a historical byte, a valid
+	DESFire can have historical bytes. Or, at least, one: the
+	"category indicator byte", as defined by ISO 7816-4.
+*/
 char* get_card_type(nfc_iso14443a_info* tag_info, nfc_device* pcd) {
 	uint8_t sak = tag_info->btSak;
-	uint8_t atsSize = tag_info->szAtsLen;
+	uint8_t ats_size = tag_info->szAtsLen;
 	uint8_t* ats = tag_info->abtAts;
-
+	uint8_t historical_bytes[MAX_HISTORICAL_BYTES];
+	uint8_t historical_bytes_size = get_historical_bytes(ats, ats_size, historical_bytes);
+	
 	if ((sak & 0b10) == 0) {
 		if (sak & 0b1000) {
 			if (sak & 0b10000) {
@@ -224,7 +284,7 @@ char* get_card_type(nfc_iso14443a_info* tag_info, nfc_device* pcd) {
 					if (sak & 0b100000) {
 						return "Smart MX with MIFARE 4K";
 					} else {
-						if (atsSize == 0) {
+						if (historical_bytes_size <= 1) {
 							return "MIFARE Classic 4K";
 						} else {
 							return "MIFARE Plus";
@@ -238,7 +298,7 @@ char* get_card_type(nfc_iso14443a_info* tag_info, nfc_device* pcd) {
 					if (sak & 0b100000) {
 						return "Smart MX with MIFARE 1K";
 					} else {
-						if (atsSize == 0) {
+						if (historical_bytes_size <= 1) {
 							return "MIFARE Classic 1K";
 						} else {
 							return "MIFARE Plus";
@@ -255,7 +315,7 @@ char* get_card_type(nfc_iso14443a_info* tag_info, nfc_device* pcd) {
 				}
 			} else {
 				if (sak & 0b100000) {
-					if (atsSize == 0) {
+					if (historical_bytes_size <= 1) {
 						int version = get_target_version(pcd);
 
 						if (version >= 0) {
@@ -281,34 +341,7 @@ char* get_card_type(nfc_iso14443a_info* tag_info, nfc_device* pcd) {
 }
 
 int get_target_version(nfc_device* pcd) {
-	if (nfc_device_set_property_bool(pcd, NP_HANDLE_CRC, false) < 0) {
-		nfc_perror(pcd, "nfc_configure");
-
-		exit(EXIT_FAILURE);
-	} else if (nfc_device_set_property_bool(pcd, NP_EASY_FRAMING, false) < 0) {
-		nfc_perror(pcd, "nfc_configure");
-
-		exit(EXIT_FAILURE);
-	}
-	
-	iso14443a_crc_append(GET_VERSION_COMMAND_BYTES, 2);
-
-	int version_response = nfc_initiator_transceive_bytes(pcd, GET_VERSION_COMMAND_BYTES, sizeof(GET_VERSION_COMMAND_BYTES), NULL, 0, -1);
-
-	/*
-		Setting these properties to true instead of setting them
-		back to their previous values due to a seeming lack of an
-		nfc_device_get_property_bool equivalent function
-	*/
-	if (nfc_device_set_property_bool(pcd, NP_HANDLE_CRC, true) < 0) {
-		nfc_perror(pcd, "nfc_configure");
-
-		exit(EXIT_FAILURE);
-	} else if (nfc_device_set_property_bool(pcd, NP_EASY_FRAMING, true) < 0) {
-		nfc_perror(pcd, "nfc_configure");
-
-		exit(EXIT_FAILURE);
-	}
+	int version_response = nfc_initiator_transceive_bytes(pcd, GET_VERSION_COMMAND_BYTE, sizeof(GET_VERSION_COMMAND_BYTE), NULL, 0, -1);
 
 	return version_response;
 }
