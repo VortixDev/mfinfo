@@ -251,8 +251,6 @@ uint8_t get_historical_bytes(uint8_t* ats, uint8_t ats_size, uint8_t* historical
 		return 0;
 	}
 
-	historical_bytes = malloc(historical_bytes_count);
-
 	for (uint8_t i = 0; i < historical_bytes_count; ++i) {
 		historical_bytes[i] = ats[ATS_FORMAT_DATA_SIZE + interface_byte_count + i];
 	}
