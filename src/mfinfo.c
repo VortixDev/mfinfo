@@ -2,6 +2,8 @@
 #include <nfc/nfc.h>
 #include "nfc-utils.h"
 
+#define HALT_COMMAND 0x50
+#define GET_VERSION_COMMAND 0x60
 #define ATQA_SIZE_IN_BYTES 2
 #define SAK_SIZE_IN_BYTES 1
 #define ATS_FORMAT_DATA_SIZE 1
@@ -12,10 +14,10 @@
 // PCD = Proximity Coupling Device (the reader)
 // PICC = Proximity Integrated Circuit Card (the NFC card / tag)
 
-uint8_t HALT_COMMAND_BYTES[4] = { 0x50, 0x00, 0x00, 0x00 };
+uint8_t HALT_COMMAND_BYTES[4] = { HALT_COMMAND, 0x00, 0x00, 0x00 };
 const uint8_t HALT_UNLOCK_PARAMETERS[2] = { 0x40, 0x43 }; // Special parameters for "magic" cards
 
-uint8_t GET_VERSION_COMMAND_BYTE[1] = { 0x60 };
+uint8_t GET_VERSION_COMMAND_BYTE[1] = { GET_VERSION_COMMAND };
 
 void print_nfc_version();
 void print_pcd_name(nfc_device*);
