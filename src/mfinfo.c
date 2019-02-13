@@ -269,6 +269,9 @@ uint8_t get_historical_bytes(uint8_t* ats, uint8_t ats_size, uint8_t* historical
 	DESFire as ensuring	the lack of a historical byte, a valid
 	DESFire can have historical bytes. Or, at least, one: the
 	"category indicator byte", as defined by ISO 7816-4.
+
+	https://stackoverflow.com/questions/54526238/what-and-where-are-historical-bytes-in-a-mifares-ats
+	http://www.embedx.com/pdfs/ISO_STD_7816/info_isoiec7816-4%7Bed21.0%7Den.pdf
 */
 char* get_card_type(nfc_iso14443a_info* tag_info, nfc_device* pcd) {
 	uint8_t sak = tag_info->btSak;
