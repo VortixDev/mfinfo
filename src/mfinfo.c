@@ -30,7 +30,6 @@ void print_card_type(nfc_iso14443a_info*, nfc_device*);
 bool get_is_magic_gen1(nfc_context*, nfc_device*);
 uint8_t get_historical_bytes(uint8_t*, uint8_t, uint8_t*);
 char* get_card_type(nfc_iso14443a_info*, nfc_device*);
-int get_target_version(nfc_device*);
 void configure_pcd(nfc_context*, nfc_device*);
 nfc_context* allocate_nfc_context();
 nfc_device* open_pcd(nfc_context*);
@@ -319,7 +318,7 @@ char* get_card_type(nfc_iso14443a_info* tag_info, nfc_device* pcd) {
 			} else {
 				if (sak & 0b100000) {
 					if (historical_bytes_size <= 1) {
-						int version = get_target_version(pcd);
+						int version = nfc_initiator_transceive_bytes(pcd, GET_VERSION_COMMAND_BYTE, sizeof(GET_VERSION_COMMAND_BYTE), NULL, 0, -1);
 
 						if (version >= 0) {
 							return "MIFARE DESFire (EV1?)";
@@ -341,10 +340,4 @@ char* get_card_type(nfc_iso14443a_info* tag_info, nfc_device* pcd) {
 	} else {
 		return "Unidentifiable (SAK reserved bit - bit 2 - is in use)";
 	}
-}
-
-int get_target_version(nfc_device* pcd) {
-	int version_response = nfc_initiator_transceive_bytes(pcd, GET_VERSION_COMMAND_BYTE, sizeof(GET_VERSION_COMMAND_BYTE), NULL, 0, -1);
-
-	return version_response;
 }
