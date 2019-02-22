@@ -246,10 +246,6 @@ uint8_t get_historical_bytes(uint8_t* ats, uint8_t ats_size, uint8_t* historical
 
 	uint8_t historical_bytes_count = ats_size - ATS_FORMAT_DATA_SIZE - interface_byte_count;
 
-	if (historical_bytes_count == 0) {
-		return 0;
-	}
-
 	for (uint8_t i = 0; i < historical_bytes_count; ++i) {
 		historical_bytes[i] = ats[ATS_FORMAT_DATA_SIZE + interface_byte_count + i];
 	}
