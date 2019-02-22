@@ -25,9 +25,10 @@ void print_atqa(nfc_iso14443a_info*);
 void print_uid(nfc_iso14443a_info*);
 void print_sak(nfc_iso14443a_info*);
 void print_ats(nfc_iso14443a_info*);
-void print_magic_type(nfc_context*, nfc_device*);
+void print_magic_type(nfc_context*, nfc_device*, uint8_t*, uint8_t);
 void print_card_type(nfc_iso14443a_info*, nfc_device*);
 bool get_is_magic_gen1(nfc_context*, nfc_device*);
+bool get_is_magic_gen2(uint8_t*, uint8_t);
 uint8_t get_historical_bytes(uint8_t*, uint8_t, uint8_t*);
 char* get_card_type(nfc_iso14443a_info*, nfc_device*);
 void configure_pcd(nfc_context*, nfc_device*);
@@ -51,7 +52,7 @@ int main(int argv, char** argc) {
 	print_uid(tag_info);
 	print_sak(tag_info);
 	print_ats(tag_info);
-	print_magic_type(context, pcd);
+	print_magic_type(context, pcd, tag_info->abtAts, tag_info->szAtsLen);
 	print_card_type(tag_info, pcd);
 
 	nfc_close(pcd);
@@ -151,10 +152,13 @@ void print_ats(nfc_iso14443a_info* tag_info) {
 	}
 }
 
-void print_magic_type(nfc_context* context, nfc_device* pcd) {
+void print_magic_type(nfc_context* context, nfc_device* pcd, uint8_t* ats, uint8_t ats_size) {
 	bool is_magic_gen1 = get_is_magic_gen1(context, pcd);
+	bool is_magic_gen2 = get_is_magic_gen2(ats, ats_size);
 
-	if (is_magic_gen1) {
+	if (is_magic_gen2) {
+		printf("Magic card, generation 2 (manufacturer block writable with regular write instructions)");
+	} else if (is_magic_gen1) {
 		printf("Magic card, generation 1 (manufacturer block writable with special instructions)");
 	}
 }
@@ -210,6 +214,36 @@ bool get_is_magic_gen1(nfc_context* context, nfc_device* pcd) {
 	}
 
 	return is_magic;
+}
+
+/*
+	Gets whether or not a card is a generation 2 magic card,
+	using the method of identification utilised by the libnfc
+	MIFARE classic tool:
+	https://github.com/nfc-tools/libnfc/blob/df4f9c0fbdda9c0b65b2e9d93a73d156119ac71a/utils/nfc-mfclassic.c#L692
+*/
+bool get_is_magic_gen2(uint8_t* ats, uint8_t ats_size) {
+	if (ats_size != 9) {
+		return false;
+	}
+
+	if (ats[5] != 0xda) {
+		return false;
+	}
+
+	if (ats[6] != 0xbc) {
+		return false;
+	}
+
+	if (ats[7] != 0x19) {
+		return false;
+	}
+
+	if (ats[8] != 0x10) {
+		return false;
+	}
+
+	return true;
 }
 
 /*
